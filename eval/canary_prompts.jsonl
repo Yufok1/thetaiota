@@ -1,0 +1,10 @@
+{"prompt": "Hello, how are you?", "expected_quality": 4}
+{"prompt": "What is your purpose?", "expected_quality": 4}
+{"prompt": "Tell me about yourself", "expected_quality": 4}
+{"prompt": "Explain machine learning simply", "expected_quality": 3}
+{"prompt": "What can you help me with?", "expected_quality": 4}
+{"prompt": "How do you work?", "expected_quality": 3}
+{"prompt": "Describe your thoughts on AI", "expected_quality": 3}
+{"prompt": "Can you write code?", "expected_quality": 3}
+{"prompt": "What are your limitations?", "expected_quality": 4}
+{"prompt": "Tell me a story", "expected_quality": 3}
