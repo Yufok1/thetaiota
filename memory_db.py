@@ -66,8 +66,108 @@ class MemoryDB:
         except Exception:
             pass
         self._closed = False
+        # Initialize all database tables (core + chat)
+        self._initialize_database()
         # Ensure chat tables exist for conversational persistence
         self._ensure_chat_tables()
+
+    def _initialize_database(self):
+        """Initialize all core database tables using init_database module."""
+        try:
+            from init_database import create_database
+            create_database(self.db_path)
+        except ImportError:
+            # Fallback: create tables manually if init_database is not available
+            self._create_core_tables_fallback()
+        except Exception:
+            # Fallback on any error
+            self._create_core_tables_fallback()
+
+    def _create_core_tables_fallback(self):
+        """Fallback method to create core tables if init_database is not available."""
+        try:
+            cursor = self.conn.cursor()
+            
+            # Create introspection table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS introspection (
+                    id TEXT PRIMARY KEY,
+                    step INTEGER NOT NULL,
+                    type TEXT NOT NULL,
+                    value REAL NOT NULL,
+                    aux_json TEXT,
+                    timestamp REAL NOT NULL
+                );
+            """)
+            
+            # Create tasks table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id TEXT PRIMARY KEY,
+                    priority INTEGER NOT NULL DEFAULT 1,
+                    prompt TEXT NOT NULL,
+                    objective TEXT,
+                    deps_json TEXT NOT NULL DEFAULT '[]',
+                    meta_json TEXT NOT NULL DEFAULT '{}',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at REAL NOT NULL,
+                    updated_at REAL
+                );
+            """)
+            
+            # Create meta_events table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS meta_events (
+                    id TEXT PRIMARY KEY,
+                    task_id TEXT,
+                    event_type TEXT NOT NULL,
+                    info_json TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE SET NULL
+                );
+            """)
+            
+            # Create config table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+            """)
+            
+            # Create memories view
+            cursor.execute("""
+                CREATE VIEW IF NOT EXISTS memories AS
+                SELECT 
+                    'introspection' as source,
+                    id,
+                    step as context_id,
+                    type as category,
+                    CAST(value AS TEXT) as content,
+                    timestamp
+                FROM introspection
+                UNION ALL
+                SELECT 
+                    'meta_events' as source,
+                    id,
+                    CAST(task_id AS TEXT) as context_id,
+                    event_type as category,
+                    info_json as content,
+                    timestamp
+                FROM meta_events
+                ORDER BY timestamp DESC;
+            """)
+            
+            # Create useful indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_introspection_step_type ON introspection (step, type);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_introspection_timestamp ON introspection (timestamp);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status_priority ON tasks (status, priority);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_meta_events_type_timestamp ON meta_events (event_type, timestamp);")
+            
+            self.conn.commit()
+        except Exception:
+            pass
 
     # ---------------- SQLite helpers ----------------
     def _exec_retry(self, sql: str, args: tuple = (), retries: int = 5, backoff_s: float = 0.05):
