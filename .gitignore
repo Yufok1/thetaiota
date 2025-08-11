@@ -79,6 +79,7 @@ htmlcov/
 *.txt
 !README.txt
 !LICENSE.txt
+!requirements.txt
 
 # Documentation builds
 docs/_build/
