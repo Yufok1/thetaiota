@@ -1,0 +1,2 @@
+# This file ensures the checkpoints directory exists in the repository
+# Model checkpoints will be saved here during training

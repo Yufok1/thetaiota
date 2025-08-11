@@ -35,7 +35,8 @@ venv.bak/
 *.db-journal
 
 # Model checkpoints and weights
-checkpoints/
+checkpoints/*
+!checkpoints/.gitkeep
 *.pt
 *.pth
 *.ckpt
