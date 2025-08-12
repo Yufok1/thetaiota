@@ -202,6 +202,25 @@ def main():
     )
     model.to(args.device)
     
+    # Try to load existing weights
+    checkpoint_path = os.path.join('checkpoints', 'minimal_transformer.pt')
+    if os.path.exists(checkpoint_path):
+        try:
+            print(f"   Loading existing weights from {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=args.device)
+            if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['state_dict'])
+                print(f"   Loaded checkpoint from epoch {checkpoint.get('epoch', 'unknown')}")
+                print(f"   Previous loss: {checkpoint.get('loss', 'unknown'):.4f}")
+            else:
+                model.load_state_dict(checkpoint)
+                print(f"   Loaded weights successfully")
+        except Exception as e:
+            print(f"   Could not load existing weights: {e}")
+            print(f"   Starting with fresh weights")
+    else:
+        print(f"   No existing checkpoint found - starting fresh")
+    
     params = sum(p.numel() for p in model.parameters())
     print(f"   Parameters: {params:,} ({params/1e6:.1f}M)")
     print(f"   Model Type: Agent Learning Transformer")
