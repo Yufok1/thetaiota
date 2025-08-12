@@ -22,14 +22,17 @@ No external models or APIs. All conversation and learning run locally.
   - `memory_db.py` (SQLite): `introspection`, `tasks`, `meta_events`, `config`, `chat_sessions`, `chat_messages`; view: `memories`
   - Hardened: WAL, NORMAL sync, busy_timeout
   - `reflection_explainer.py`, `memory_summarizer.py`, `human_feedback_system.py`
-- **Conversation**
-  - `chat_engine.py`: reflective chat + enhanced local LM (150M params, 12-layer transformer), session memory, temperature/top‑k
-  - `train_tiny_lm.py`: trains 150M parameter conversational LM on project text (100 epochs default, saves `checkpoints/tiny_lm.pt`)
-  - `train_conversational_lm_windows.py`: Windows-compatible training with live text generation display and 84 diverse test prompts
+- **Neural Models & Training**
+  - `chat_engine.py`: reflective chat + enhanced local LM (237.4M params, 12-layer transformer), session memory, temperature/top‑k
+- `train_conversational_lm_windows.py`: trains 237.4M parameter conversational LM (50 epochs default, saves `checkpoints/tiny_lm.pt`)
+- `train_minimal_transformer_windows.py`: trains 238.0M parameter agent learning model (saves `checkpoints/minimal_transformer.pt`)
+- `transformer_model.py`: MinimalTransformer architecture for agent cognition and decision making
+- **Meta-Learning & Control**
+  - `meta_controller.py`: enhanced neural controller (746K params, 6-layer deep network) for training dynamics management
+  - `task_spawner.py`: dynamic task generation and curriculum learning
 - **CLI**
   - `djinn.bat`: unified CLI shim (no `python` needed)
   - `cli_control.py`: natural‑language prompt + advanced commands
-  - `djinn-train.bat`: batch wrapper for the tiny LM trainer
 
 ---
 
@@ -41,10 +44,10 @@ No external models or APIs. All conversation and learning run locally.
    - `.\djinn.bat` → opens a simple prompt (type sentences; Ctrl+C to exit)
    - One‑shot: `.\djinn.bat "hello there"`
    - Toggle local generator in the prompt: `!lm` (switch back: `!reflect`)
-4) **Recommended**: train the enhanced local generator:
-   - `.\djinn-train.bat` → trains 150M parameter model for 100 epochs → writes `checkpoints\tiny_lm.pt`
-   - OR: `python train_conversational_lm_windows.py --epochs 100 --use_amp` → enhanced training with live text generation display
-   - Takes 1-2 hours depending on hardware (CUDA recommended, 3GB+ VRAM)
+4) **Recommended**: train the neural models (in order):
+   - **LM Training**: `python train_conversational_lm_windows.py --epochs 50 --lr 1e-5 --batch 32 --context 512 --test_every 5 --d_model 1280 --d_ff 5120 --n_layers 12` → trains 237.4M parameter conversational LM → writes `checkpoints\tiny_lm.pt`
+- **Agent Learning Training**: `python train_minimal_transformer_windows.py --epochs 50 --lr 1e-3 --d_model 1280 --d_ff 5120 --n_layers 12` → trains 238.0M parameter agent learning model → writes `checkpoints\minimal_transformer.pt`
+   - Takes 2-3 hours total depending on hardware (CUDA recommended, 4GB+ VRAM)
    - Restart A/B/C windows so new weights are loaded automatically
 
 Dependencies (install once):
@@ -56,8 +59,8 @@ Dependencies (install once):
 
 ### Modes
 - **Reflect (default)**: conversational replies from the agent's own memory/state (no generator). Deterministic; great for status/explanations.
-- **LM (local generator)**: replies written by a 150M parameter on‑device Transformer (12 layers, 1024 d_model). Silver-tongued conversational AI; reflective fallback if the LM is unsure.
-- **Training (learning)**: background epochs improving the base learner/meta‑controller; independent of chat mode (can run while chatting).
+- **LM (local generator)**: replies written by a 237.4M parameter on‑device Transformer (12 layers, 1280 d_model). Silver-tongued conversational AI; reflective fallback if the LM is unsure.
+- **Training (learning)**: background epochs improving the agent learning model and meta‑controller; independent of chat mode (can run while chatting).
 
 ---
 
@@ -141,22 +144,25 @@ PowerShell tip: prefix local scripts with `.\` (e.g., `.\djinn.bat`).
 - **B/C timeout on start** → retry; check `http://127.0.0.1:8082/health` or `:8083/health` (`agent_connected: false` = API up, service not started yet)
 - **404s at startup** → wait a few seconds after `start_all.bat`
 - **Only A responds** → by design (A is leader/user surface). B/C contribute quorum and weight sync.
-- **New LM weights not applied** → run `djinn-train.bat`, restart A/B/C windows, then `start --agent ALL`.
+- **New LM weights not applied** → run `python train_conversational_lm_windows.py`, restart A/B/C windows, then `start --agent ALL`.
+- **Agent learning model missing** → run `python train_minimal_transformer_windows.py` to train the 150M parameter agent model.
 
 ---
 
 ### File map
 - `start_all.bat`, `server_main.py`
-- `djinn.bat`, `cli_control.py`, `djinn-train.bat`
+- `djinn.bat`, `cli_control.py`
 - `phase4_api_server.py`, `phase4_agent_service.py`
-- `chat_engine.py`, `train_tiny_lm.py`
+- `chat_engine.py`, `train_conversational_lm_windows.py`, `train_minimal_transformer_windows.py`
+- `transformer_model.py`, `meta_controller.py`
 - `memory_db.py`
 
 ---
 
 ### Roadmap (scaling safely)
-- Fine‑tune tiny LM on domain text; keep reflective fallback
+- Fine‑tune both LM and MinimalTransformer on domain text (237.4M + 238.0M params); keep reflective fallback
 - Activation checkpointing, gradient accumulation, 8‑bit optimizers
 - LoRA/QLoRA adapters; longer context; top‑p/stop‑sequences
 - Retrieval‑augmented replies from MemoryDB and reflections
+- Enhanced meta-controller training with more sophisticated reward signals
 - Optional RLHF later

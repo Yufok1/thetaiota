@@ -158,7 +158,7 @@ def test_generation(model, tokenizer, epoch, device):
                 x = torch.tensor([ids], device=device)
                 
                 # Generate response
-                output = model.generate(x, max_new_tokens=150, temperature=0.8, top_k=20)
+                output = model.generate(x, max_new_tokens=450, temperature=0.8, top_k=20)
                 generated_ids = output[0].tolist()[len(ids):]
                 response = tokenizer.decode(generated_ids).strip()
                 

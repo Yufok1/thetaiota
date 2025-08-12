@@ -101,16 +101,16 @@ class TransformerLayer(nn.Module):
 
 class MinimalTransformer(nn.Module):
     """
-    Multi-layer transformer (150M parameters) optimized for GTX 1060 3GB.
+    Multi-layer transformer (~205M parameters) optimized for GTX 1060 3GB.
     Includes introspection capabilities for self-reflection.
-    Default: 12 layers × 1024d × 4096 ff
+    Default: 12 layers × 1280d × 5120 ff
     """
     
     def __init__(
         self,
         vocab_size: int = 1000,
-        d_model: int = 1024,
-        d_ff: int = 4096,
+        d_model: int = 1280,
+        d_ff: int = 5120,
         max_seq_len: int = 512,
         num_classes: int = 2,
         dropout: float = 0.1,

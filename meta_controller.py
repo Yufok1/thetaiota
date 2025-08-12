@@ -14,80 +14,129 @@ from dataclasses import dataclass
 from enum import Enum
 
 class MetaAction(Enum):
-    """Possible actions the meta-controller can take."""
+    """Enhanced set of actions the meta-controller can take."""
     CONTINUE_TRAINING = 0
     FINE_TUNE_NOW = 1
     SPAWN_DATA_COLLECTION = 2
     ADJUST_LEARNING_RATE = 3
     PAUSE_AND_ANALYZE = 4
+    INCREASE_BATCH_SIZE = 5
+    DECREASE_BATCH_SIZE = 6
+    SWITCH_OPTIMIZER = 7
+    GRADIENT_CLIPPING = 8
+    CURRICULUM_ADVANCE = 9
+    EMERGENCY_STOP = 10
 
 @dataclass
 class MetaObservation:
-    """Observation state for the meta-controller."""
+    """Rich observation state for the enhanced meta-controller."""
+    # Core metrics
     val_loss: float
-    val_loss_trend: float  # Recent slope
     train_loss: float
     gradient_norm: float
     confidence: float
-    attention_entropy: float
+    
+    # Trend analysis
+    val_loss_trend: float
+    train_loss_trend: float
+    gradient_trend: float
+    confidence_trend: float
+    
+    # Training dynamics
     steps_since_improvement: int
     steps_since_last_update: int
     memory_usage: float
+    attention_entropy: float
     
-    # Phase 3: Past decision context
+    # Advanced metrics
+    loss_variance: float
+    gradient_variance: float
+    learning_rate: float
+    batch_size: int
+    
+    # Historical context
     last_action_reward: float = 0.0
     recent_action_success_rate: float = 0.5
     decision_history_embedding: List[float] = None
     
+    # Multi-agent coordination
+    agent_coordination_score: float = 0.5
+    federation_health: float = 1.0
+    
     def to_tensor(self) -> torch.Tensor:
         """Convert to tensor for neural network input."""
         base_features = [
-            self.val_loss,
-            self.val_loss_trend, 
-            self.train_loss,
-            self.gradient_norm,
-            self.confidence,
-            self.attention_entropy,
-            float(self.steps_since_improvement),
-            float(self.steps_since_last_update),
-            self.memory_usage,
-            # Phase 3: Past decision features
-            self.last_action_reward,
-            self.recent_action_success_rate
+            # Core metrics (4)
+            self.val_loss, self.train_loss, self.gradient_norm, self.confidence,
+            
+            # Trend analysis (4)
+            self.val_loss_trend, self.train_loss_trend, self.gradient_trend, self.confidence_trend,
+            
+            # Training dynamics (4)
+            float(self.steps_since_improvement), float(self.steps_since_last_update),
+            self.memory_usage, self.attention_entropy,
+            
+            # Advanced metrics (4)
+            self.loss_variance, self.gradient_variance, self.learning_rate, float(self.batch_size),
+            
+            # Historical context (2)
+            self.last_action_reward, self.recent_action_success_rate,
+            
+            # Multi-agent coordination (2)
+            self.agent_coordination_score, self.federation_health,
         ]
         
         # Add decision history embedding if available
         if self.decision_history_embedding:
-            base_features.extend(self.decision_history_embedding[:8])  # Limit to 8 features
+            base_features.extend(self.decision_history_embedding[:20])  # 20 features
         else:
-            base_features.extend([0.0] * 8)  # Pad with zeros
+            base_features.extend([0.0] * 20)  # Pad with zeros
             
         return torch.tensor(base_features, dtype=torch.float32)
 
 class MetaControllerNet(nn.Module):
     """
-    Neural network for meta-controller decisions.
-    Takes introspection data and outputs action probabilities.
+    Enhanced neural network for meta-controller decisions.
+    Properly sized for managing large-scale AI systems.
     """
     
-    def __init__(self, input_dim: int = 19, hidden_dim: int = 32, num_actions: int = 5):  # Phase 3: Expanded input
+    def __init__(self, input_dim: int = 40, hidden_dim: int = 512, num_actions: int = 11):
         super().__init__()
         self.input_dim = input_dim
         self.num_actions = num_actions
         
-        # Small MLP - we want it to learn quickly
+        # Deep architecture for complex decision making
         self.net = nn.Sequential(
+            # Input layer
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.1),
+            
+            # Hidden layers
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, num_actions)
+            nn.Dropout(0.1),
+            
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            
+            nn.Linear(hidden_dim // 2, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            
+            # Output layer
+            nn.Linear(hidden_dim // 2, num_actions)
         )
         
-        # Initialize with small weights for stable learning
+        # Initialize with proper scaling
         for layer in self.net:
             if isinstance(layer, nn.Linear):
-                nn.init.xavier_uniform_(layer.weight, gain=0.1)
+                nn.init.xavier_uniform_(layer.weight, gain=1.0)
                 nn.init.zeros_(layer.bias)
     
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
@@ -133,7 +182,7 @@ class MetaController:
         
         # Experience buffer for training
         self.experience_buffer = []
-        self.max_buffer_size = 1000
+        self.max_buffer_size = 2000  # Larger buffer for complex decisions
         
         # Training state
         self.total_steps = 0
@@ -147,39 +196,75 @@ class MetaController:
         self.decision_analysis_cache = {}
         self.recent_decision_outcomes = []
         
-        print(f"MetaController initialized with {sum(p.numel() for p in self.net.parameters())} parameters")
+        # Calculate parameters
+        params = sum(p.numel() for p in self.net.parameters())
+        print(f"EnhancedMetaController initialized with {params:,} parameters ({params/1e6:.1f}M)")
+        print(f"   Input features: 40")
+        print(f"   Hidden dimensions: 512")
+        print(f"   Actions: 11")
+        print(f"   Architecture: 6-layer deep network")
     
     def observe(self, metrics: Dict[str, float], steps_since_improvement: int, 
                 steps_since_last_update: int) -> MetaObservation:
         """
-        Phase 3: Create observation from current agent state including past decision analysis.
+        Create rich observation from current agent state including advanced analysis.
         """
-        # Calculate trend from recent history
+        # Calculate trends from recent history
         val_loss_trend = 0.0
-        if len(self.reward_history) >= 2:
-            recent_losses = [r for r in self.reward_history[-5:]]
-            if len(recent_losses) >= 2:
-                val_loss_trend = recent_losses[-1] - recent_losses[0]
+        train_loss_trend = 0.0
+        gradient_trend = 0.0
+        confidence_trend = 0.0
         
-        # Phase 3: Analyze past decisions
+        if len(self.reward_history) >= 5:
+            recent_losses = [r for r in self.reward_history[-10:]]
+            if len(recent_losses) >= 3:
+                val_loss_trend = recent_losses[-1] - recent_losses[0]
+                train_loss_trend = recent_losses[-1] - recent_losses[-3]
+                gradient_trend = recent_losses[-1] - recent_losses[-2]
+                confidence_trend = recent_losses[-1] - recent_losses[-5]
+        
+        # Advanced analysis
         last_action_reward = self.reward_history[-1] if self.reward_history else 0.0
         recent_success_rate = self._calculate_recent_success_rate()
         decision_embedding = self._create_decision_history_embedding()
         
+        # Calculate variances
+        loss_variance = metrics.get('loss_variance', 0.1)
+        gradient_variance = metrics.get('gradient_variance', 0.1)
+        
         return MetaObservation(
+            # Core metrics
             val_loss=metrics.get('val_loss', 0.5),
-            val_loss_trend=val_loss_trend,
             train_loss=metrics.get('train_loss', 0.5),
             gradient_norm=metrics.get('gradient_norm', 1.0),
             confidence=metrics.get('val_confidence', 0.5),
-            attention_entropy=metrics.get('attention_entropy', 2.0),
+            
+            # Trend analysis
+            val_loss_trend=val_loss_trend,
+            train_loss_trend=train_loss_trend,
+            gradient_trend=gradient_trend,
+            confidence_trend=confidence_trend,
+            
+            # Training dynamics
             steps_since_improvement=steps_since_improvement,
             steps_since_last_update=steps_since_last_update,
             memory_usage=metrics.get('memory_usage_gb', 0.1),
-            # Phase 3: Past decision features
+            attention_entropy=metrics.get('attention_entropy', 2.0),
+            
+            # Advanced metrics
+            loss_variance=loss_variance,
+            gradient_variance=gradient_variance,
+            learning_rate=metrics.get('learning_rate', 1e-3),
+            batch_size=metrics.get('batch_size', 32),
+            
+            # Historical context
             last_action_reward=last_action_reward,
             recent_action_success_rate=recent_success_rate,
-            decision_history_embedding=decision_embedding
+            decision_history_embedding=decision_embedding,
+            
+            # Multi-agent coordination
+            agent_coordination_score=metrics.get('coordination_score', 0.5),
+            federation_health=metrics.get('federation_health', 1.0)
         )
     
     def decide_action(self, observation: MetaObservation, 
@@ -205,22 +290,32 @@ class MetaController:
     
     def _generate_reasoning(self, obs: MetaObservation, action: MetaAction, 
                           confidence: float) -> str:
-        """Generate human-readable reasoning for the decision."""
+        """Generate sophisticated human-readable reasoning for the decision."""
         reasons = []
         
-        # Analyze key factors
+        # Analyze multiple factors
         if obs.val_loss > 0.7:
             reasons.append("high validation loss")
-        if obs.steps_since_improvement > 5:
+        if obs.train_loss > 0.8:
+            reasons.append("high training loss")
+        if obs.steps_since_improvement > 10:
             reasons.append(f"no improvement for {obs.steps_since_improvement} steps")
         if obs.confidence < 0.6:
             reasons.append("low model confidence")
         if obs.gradient_norm < 0.1:
             reasons.append("very small gradients")
-        if obs.gradient_norm > 2.0:
+        if obs.gradient_norm > 3.0:
             reasons.append("large gradients")
+        if obs.loss_variance > 0.5:
+            reasons.append("high loss variance")
+        if obs.memory_usage > 0.8:
+            reasons.append("high memory usage")
+        if obs.agent_coordination_score < 0.3:
+            reasons.append("poor agent coordination")
+        if obs.federation_health < 0.7:
+            reasons.append("federation health concerns")
         
-        reason_text = ", ".join(reasons) if reasons else "normal training conditions"
+        reason_text = ", ".join(reasons) if reasons else "optimal training conditions"
         
         return f"{action.name} (conf: {confidence:.3f}) due to {reason_text}"
     
@@ -244,18 +339,18 @@ class MetaController:
                 self.experience_buffer.pop(0)
             
             self.reward_history.append(reward)
-            if len(self.reward_history) > 50:
+            if len(self.reward_history) > 100:  # Larger history
                 self.reward_history.pop(0)
     
-    def train_step(self, batch_size: int = 32) -> Optional[float]:
+    def train_step(self, batch_size: int = 64) -> Optional[float]:
         """
-        Train the meta-controller on recent experience.
-        Uses policy gradient (REINFORCE) algorithm.
+        Train the enhanced meta-controller on recent experience.
+        Uses advanced policy gradient with larger batches.
         """
-        if len(self.experience_buffer) == 0:
+        if len(self.experience_buffer) < batch_size // 2:
             return None
         
-        # Sample batch
+        # Sample larger batch for complex learning
         effective_batch = min(batch_size, len(self.experience_buffer))
         indices = np.random.choice(len(self.experience_buffer), effective_batch, replace=False)
         batch = [self.experience_buffer[i] for i in indices]
@@ -265,7 +360,7 @@ class MetaController:
         actions = torch.tensor([exp['action'] for exp in batch], dtype=torch.long).to(self.device)
         rewards = torch.tensor([exp['reward'] for exp in batch], dtype=torch.float32).to(self.device)
         
-        # Normalize rewards (baseline)
+        # Advanced reward normalization
         if rewards.std() > 0:
             rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
         
@@ -277,18 +372,15 @@ class MetaController:
         action_log_probs = log_probs.gather(1, actions.unsqueeze(1)).squeeze(1)
         loss = -(action_log_probs * rewards).mean()
         
-        # Backward pass
+        # Backward pass with gradient clipping
         self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.net.parameters(), max_norm=1.0)
         self.optimizer.step()
         
         self.total_steps += 1
-        # Track last loss for diagnostics
-        try:
-            self.last_loss = float(loss.item())
-        except Exception:
-            pass
+        self.last_loss = float(loss.item())
+        
         return self.last_loss
     
     def _calculate_recent_success_rate(self) -> float:
@@ -301,47 +393,31 @@ class MetaController:
         return successful_decisions / len(recent_rewards)
     
     def _create_decision_history_embedding(self) -> List[float]:
-        """Phase 3: Create embedding representing recent decision patterns."""
-        if not self.action_history or len(self.action_history) < 3:
-            return [0.0] * 8  # Return zero embedding
+        """Create embedding of recent decision history."""
+        if len(self.action_history) < 5:
+            return [0.0] * 20
         
-        # Create simple embedding based on action frequency and success
-        # self.action_history stores tuples: (observation, action_id, confidence)
-        recent_actions = self.action_history[-10:]
-        recent_action_ids = [a[1] if isinstance(a, tuple) and len(a) >= 2 else a for a in recent_actions]
-        recent_rewards = self.reward_history[-10:]
+        # Simple embedding: recent action frequencies and reward trends
+        recent_actions = [a[1] for a in self.action_history[-20:]]
+        recent_rewards = self.reward_history[-20:] if self.reward_history else [0.0] * 20
         
-        # Action frequency embedding (one-hot style)
-        action_counts = [0] * 5
-        for action_id in recent_action_ids:
-            if isinstance(action_id, int) and 0 <= action_id < 5:
-                action_counts[action_id] += 1
+        # Action frequency features (11 actions)
+        action_counts = [recent_actions.count(i) for i in range(11)]
         
-        total_actions = sum(action_counts)
-        action_frequencies = [count / total_actions if total_actions > 0 else 0.0 
-                            for count in action_counts]
-        
-        # Average success per action type
-        action_success = [0.0] * 5
-        action_reward_counts = [0] * 5
-        
-        for action_id, reward in zip(recent_action_ids[-len(recent_rewards):], recent_rewards):
-            if isinstance(action_id, int) and 0 <= action_id < 5:
-                action_success[action_id] += reward
-                action_reward_counts[action_id] += 1
-        
-        # Normalize by count
-        for i in range(5):
-            if action_reward_counts[i] > 0:
-                action_success[i] /= action_reward_counts[i]
-        
-        # Create 8-dimensional embedding
-        embedding = action_frequencies[:3] + action_success[:3] + [
-            np.mean(recent_rewards) if recent_rewards else 0.0,  # Overall recent performance
-            len(recent_actions) / 10.0  # Activity level (normalized)
+        # Reward trend features (9 features)
+        reward_features = [
+            np.mean(recent_rewards),
+            np.std(recent_rewards),
+            np.max(recent_rewards),
+            np.min(recent_rewards),
+            recent_rewards[-1] if recent_rewards else 0.0,
+            recent_rewards[-5] if len(recent_rewards) >= 5 else 0.0,
+            recent_rewards[-10] if len(recent_rewards) >= 10 else 0.0,
+            np.sum(1 for r in recent_rewards if r > 0),
+            np.sum(1 for r in recent_rewards if r < 0)
         ]
         
-        return embedding[:8]  # Ensure exactly 8 dimensions
+        return action_counts + reward_features
     
     def _analyze_decision_from_memory(self, step_range: int = 20) -> Dict[str, Any]:
         """Phase 3: Analyze past decisions from memory database."""

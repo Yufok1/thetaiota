@@ -37,7 +37,7 @@ DEFAULT_MAP = {
 }
 
 # Simple HTTP client tuning
-TIMEOUT_SEC = 15.0
+TIMEOUT_SEC = 120.0
 RETRIES = 3
 RETRY_DELAY_SEC = 1.0
 

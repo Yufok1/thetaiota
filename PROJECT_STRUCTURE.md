@@ -13,10 +13,11 @@ thetaiota/
 │   ├── phase4_agent_service.py      # Production service wrapper
 │   └── phase4_api_server.py         # FastAPI REST server
 │
-├── 📁 Neural Models
-│   ├── chat_engine.py               # Conversational LM (150M params)
-│   ├── transformer_model.py         # Base transformer architecture
-│   └── train_tiny_lm.py             # Training script for LM
+├── 📁 Neural Models & Training
+│   ├── chat_engine.py               # Conversational LM (237M params)
+│   ├── transformer_model.py         # MinimalTransformer architecture (150M params)
+│   ├── train_conversational_lm_windows.py  # LM training script
+│   └── train_minimal_transformer_windows.py # Agent learning training
 │
 ├── 📁 Memory & Persistence
 │   ├── memory_db.py                 # SQLite-based memory system
@@ -35,11 +36,10 @@ thetaiota/
 │   ├── djinn.bat                    # Windows CLI wrapper
 │   └── start_all.bat                # Federation launcher
 │
-├── 📁 Training & Development
-│   ├── train_conversational_lm_windows.py  # Enhanced training
-│   ├── curriculum_dataset.py        # Training data management
-│   ├── meta_controller.py           # Meta-learning controller
-│   └── task_spawner.py              # Dynamic task generation
+├── 📁 Meta-Learning & Control
+│   ├── meta_controller.py           # Enhanced neural controller (746K params)
+│   ├── task_spawner.py              # Dynamic task generation
+│   └── curriculum_dataset.py        # Training data management
 │
 ├── 📁 Evaluation & Testing
 │   ├── canary_eval.py               # Model evaluation
@@ -114,13 +114,31 @@ Introspection → Reflection → Summarization
 Human Feedback → Decision Explanation
 ```
 
-#### Neural Models
+#### Neural Architecture
 ```
-ChatEngine (150M params)
+Conversational LM (237M params)
     ↓
-TinyCausalLM (12-layer transformer)
+12-layer transformer (1280 d_model)
     ↓
 ByteTokenizer (UTF-8 encoding)
+    ↓
+ChatEngine (interface)
+
+MinimalTransformer (238.0M params)
+    ↓
+12-layer transformer (1280 d_model)
+    ↓
+Agent Learning Model
+    ↓
+Phase 1/2/3 Agents
+
+Meta-Controller (746K params)
+    ↓
+6-layer deep network (512 hidden)
+    ↓
+Training Dynamics Management
+    ↓
+40 input features, 11 actions
 ```
 
 ## Key Files Explained
@@ -133,9 +151,11 @@ ByteTokenizer (UTF-8 encoding)
 - **`phase4_api_server.py`**: FastAPI server with authentication and monitoring
 
 ### Neural Model Files
-- **`chat_engine.py`**: Conversational interface with 150M parameter LM
-- **`transformer_model.py`**: Base transformer architecture with introspection
-- **`train_tiny_lm.py`**: Training script for the conversational model
+- **`chat_engine.py`**: Conversational interface with 237.4M parameter LM
+- **`transformer_model.py`**: MinimalTransformer architecture (238.0M params) for agent learning
+- **`train_conversational_lm_windows.py`**: Training script for conversational LM
+- **`train_minimal_transformer_windows.py`**: Training script for agent learning model
+- **`meta_controller.py`**: Enhanced neural controller (746K params) for training dynamics
 
 ### Memory System Files
 - **`memory_db.py`**: SQLite-based persistent storage with WAL mode
@@ -158,7 +178,9 @@ ByteTokenizer (UTF-8 encoding)
 
 ### Training Pipeline
 ```
-Project Text → Tokenizer → TinyCausalLM → Training Loop → Checkpoints
+LM Training: Project Text → Tokenizer → Conversational LM → checkpoints/tiny_lm.pt
+Agent Training: Synthetic Data → MinimalTransformer → checkpoints/minimal_transformer.pt
+Meta Training: Experience Buffer → Meta-Controller → In-memory weights
 ```
 
 ### Chat Pipeline
@@ -188,9 +210,9 @@ Introspection → SQLite Storage → Analysis → Reflection → Summary
 - `RA_RATE_LIMIT`: API rate limiting (default: 20/minute)
 
 ### Model Configuration
-- **Architecture**: 12-layer transformer
-- **Parameters**: ~150M parameters
-- **Dimensions**: 1024 d_model, 4096 d_ff
+- **Conversational LM**: 237.4M parameters, 12-layer transformer, 1280 d_model
+- **MinimalTransformer**: 238.0M parameters, 12-layer transformer, 1280 d_model  
+- **Meta-Controller**: 746K parameters, 6-layer deep network, 512 hidden
 - **Context**: 512 tokens
 - **Vocabulary**: 258 tokens (byte-level + specials)
 
