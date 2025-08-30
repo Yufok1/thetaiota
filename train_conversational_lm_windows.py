@@ -9,7 +9,8 @@ import glob
 import torch
 import torch.nn as nn
 import argparse
-from chat_engine import TinyCausalLM, ByteTokenizer
+from chat_engine import TinyCausalLM
+from transformers import GPT2TokenizerFast
 # Memory usage logging
 def log_memory_usage(label=""):
     """Log current memory usage."""
@@ -154,7 +155,7 @@ def test_generation(model, tokenizer, epoch, device):
         for i, prompt in enumerate(test_prompts):
             try:
                 # Encode prompt
-                ids = tokenizer.encode(prompt, add_special=True)
+                ids = tokenizer.encode(prompt, add_special_tokens=True)
                 x = torch.tensor([ids], device=device)
                 
                 # Generate response
@@ -211,8 +212,8 @@ def main():
     patterns = ['*.md', '*.txt', '*.py']
     corpus, files = load_corpus(patterns)
     
-    tokenizer = ByteTokenizer()
-    ids = tokenizer.encode(corpus, add_special=False)
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    ids = tokenizer.encode(corpus, add_special_tokens=True)
     
     print(f"   Files: {len(files)}")
     print(f"   Corpus Size: {len(corpus):,} characters")
