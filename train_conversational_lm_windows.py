@@ -209,7 +209,7 @@ def main():
     
     # Load training data
     print(f"\n[DATA] Loading Training Data:")
-    patterns = ['*.md', '*.txt', '*.py']
+    patterns = ['**/*.md', '**/*.txt', '**/*.py']
     corpus, files = load_corpus(patterns)
     
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
