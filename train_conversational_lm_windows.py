@@ -30,12 +30,21 @@ def load_corpus(file_patterns):
     for pattern in file_patterns:
         files.extend(glob.glob(pattern))
     
-    for file_path in files:
+    total_files = len(files)
+    print(f"   Loading {total_files} files...")
+    for idx, file_path in enumerate(files):
+        # Progress bar
+        bar_len = 30
+        progress = (idx + 1) / total_files
+        filled = int(bar_len * progress)
+        bar = '#' * filled + '-' * (bar_len - filled)
+        print(f"   [{bar}] {idx+1}/{total_files} : {os.path.basename(file_path)}", end='\r')
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 corpus += f.read() + "\n"
         except Exception as e:
-            print(f"Warning: Could not read {file_path}: {e}")
+            print(f"\nWarning: Could not read {file_path}: {e}")
+    print()  # Newline after progress bar
     
     return corpus, files
 
