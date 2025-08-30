@@ -170,7 +170,7 @@ def test_generation(model, tokenizer, epoch, device):
                     quality = "BAD"
                     response = response or "(empty)"
                 
-                print(f"   {i+1}. '{prompt}' -> '{response[:50]}...' [{quality}]")
+                    print(f"   {i+1}. '{prompt}' -> '{response}' [{quality}]")
                 
             except Exception as e:
                 print(f"   {i+1}. '{prompt}' -> Error: {e} [ERROR]")
