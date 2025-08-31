@@ -251,10 +251,10 @@ def main():
 
     print(f"[DATA] [Step 6/7] Building Vocabulary and Mapping Tokens...")
     vocab = list(sorted(set(tokens)))
-    vocab_size = min(len(vocab), 10000)
+    vocab_size = len(vocab)
     word2idx = {word: idx for idx, word in enumerate(vocab)}
     ids = [word2idx.get(token, 0) for token in tokens]
-    print(f"[DATA] Vocabulary Size: {vocab_size} (Capped at 10,000)")
+    print(f"[DATA] Vocabulary Size: {vocab_size} (Full vocabulary restored)")
     print(f"[DATA] Token IDs mapped. Total: {len(ids):,}")
 
     print(f"[MODEL] [Step 1/4] Instantiating Model...")
