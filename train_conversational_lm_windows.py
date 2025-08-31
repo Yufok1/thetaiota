@@ -232,8 +232,21 @@ def main():
     corpus, files = load_corpus(patterns)
     print(f"[DATA] [Step 3/7] Corpus Loaded. Size: {len(corpus):,} characters from {len(files)} files.")
 
+
     print(f"[DATA] [Step 4/7] Tokenizing Corpus with NLTK...")
-    tokens = word_tokenize(corpus)
+    # Tokenize in chunks for progress bar
+    chunk_size = max(1000000, len(corpus) // 50)  # 50 steps max
+    total_len = len(corpus)
+    tokens = []
+    bar_len = 30
+    for i in range(0, total_len, chunk_size):
+        chunk = corpus[i:i+chunk_size]
+        tokens.extend(word_tokenize(chunk))
+        progress = min((i + chunk_size) / total_len, 1.0)
+        filled = int(bar_len * progress)
+        bar = '#' * filled + '-' * (bar_len - filled)
+        print(f"   [TOKENIZE] [{bar}] {int(progress*100):3d}%", end='\r')
+    print()  # Newline after progress bar
     print(f"[DATA] [Step 5/7] Tokenization Complete. Token count: {len(tokens):,}")
 
     print(f"[DATA] [Step 6/7] Building Vocabulary and Mapping Tokens...")
