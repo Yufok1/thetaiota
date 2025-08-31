@@ -10,7 +10,15 @@ import torch
 import torch.nn as nn
 import argparse
 from chat_engine import TinyCausalLM
-from transformers import GPT2TokenizerFast
+# Use NLTK for lightweight tokenization
+import nltk
+from nltk.tokenize import word_tokenize
+
+# Download NLTK data if not present
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
 # Memory usage logging
 def log_memory_usage(label=""):
     """Log current memory usage."""
@@ -109,7 +117,7 @@ def log_rich_training_step(epoch, step, total_steps, loss, avg_loss, model, args
         print(f"   Convergence: LEARNING - Still learning basics...")
 
 
-def test_generation(model, tokenizer, epoch, device):
+def test_generation(model, vocab, word2idx, epoch, device):
     """Test model generation quality during training."""
     print(f"\n[QUALITY TEST] Testing Generation (Epoch {epoch+1}):")
     
@@ -163,27 +171,28 @@ def test_generation(model, tokenizer, epoch, device):
     with torch.no_grad():
         for i, prompt in enumerate(test_prompts):
             try:
-                # Encode prompt
-                ids = tokenizer.encode(prompt, add_special_tokens=True)
+                # Encode prompt using NLTK
+                prompt_tokens = word_tokenize(prompt)
+                ids = [word2idx.get(token, 0) for token in prompt_tokens]
                 x = torch.tensor([ids], device=device)
-                
+
                 # Generate response
-                output = model.generate(x, max_new_tokens=450, temperature=0.8, top_k=20)
+                output = model.generate(x, max_new_tokens=50, temperature=0.8, top_k=20)
                 generated_ids = output[0].tolist()[len(ids):]
-                response = tokenizer.decode(generated_ids).strip()
-                
+                # Decode response using vocab
+                response = ' '.join([vocab[idx] for idx in generated_ids if idx < len(vocab)]).strip()
+
                 # Quality assessment
                 if response and response != "(thinking...)" and len(response) > 5:
                     quality = "GOOD" if any(word in response.lower() for word in ["i", "am", "is", "the", "and"]) else "OK"
                 else:
                     quality = "BAD"
                     response = response or "(empty)"
-                
-                    print(f"   {i+1}. '{prompt}' -> '{response}' [{quality}]")
-                
+
+                print(f"   {i+1}. '{prompt}' -> '{response}' [{quality}]")
+
             except Exception as e:
                 print(f"   {i+1}. '{prompt}' -> Error: {e} [ERROR]")
-    
     model.train()
 
 
@@ -215,31 +224,39 @@ def main():
     print(f"   AMP: {'YES' if args.use_amp else 'NO'}")
     
     os.makedirs('checkpoints', exist_ok=True)
-    
     # Load training data
     print(f"\n[DATA] Loading Training Data:")
     patterns = ['**/*.md', '**/*.txt', '**/*.py']
     corpus, files = load_corpus(patterns)
-    
-    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
-    ids = tokenizer.encode(corpus, add_special_tokens=True)
-    
+    print("[DEBUG] Corpus loaded.")
+
+    print("[DEBUG] Using NLTK word tokenizer.")
+    tokens = word_tokenize(corpus)
+    vocab = list(sorted(set(tokens)))
+    vocab_size = min(len(vocab), 5000)
+    print(f"[DEBUG] Tokenization complete. Token count: {len(tokens)}")
+
+    # Map tokens to integer IDs
+    word2idx = {word: idx for idx, word in enumerate(vocab)}
+    ids = [word2idx.get(token, 0) for token in tokens]
+
     print(f"   Files: {len(files)}")
     print(f"   Corpus Size: {len(corpus):,} characters")
     print(f"   Tokens: {len(ids):,}")
-    print(f"   Vocabulary: {tokenizer.vocab_size}")
-    
+    print(f"   Vocabulary: {vocab_size}")
     # Create model
     print(f"\n[MODEL] Creating Model:")
     model = TinyCausalLM(
-        vocab_size=tokenizer.vocab_size,
+        vocab_size=vocab_size,
         d_model=args.d_model,
         d_ff=args.d_ff,
         max_len=args.context,
         n_layers=args.n_layers
     )
+    print("[DEBUG] Model created.")
     model.to(args.device)
-    
+    print(f"[DEBUG] Model moved to device: {args.device}")
+
     # Try to load existing weights
     checkpoint_path = os.path.join('checkpoints', 'tiny_lm.pt')
     if os.path.exists(checkpoint_path):
@@ -258,18 +275,21 @@ def main():
             print(f"   Starting with fresh weights")
     else:
         print(f"   No existing checkpoint found - starting fresh")
-    
+
     params = sum(p.numel() for p in model.parameters())
     print(f"   Parameters: {params:,} ({params/1e6:.1f}M)")
-    
+
     # Log VRAM after model creation
     print(f"\n[MEMORY] VRAM After Model Creation:")
     log_memory_usage()
-    
+
     # Optimizer with optional AMP
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    print("[DEBUG] Optimizer created.")
     loss_fn = nn.CrossEntropyLoss()
+    print("[DEBUG] Loss function created.")
     scaler = torch.cuda.amp.GradScaler(enabled=args.use_amp)
+    print("[DEBUG] GradScaler initialized.")
     
     print(f"\n" + "="*50)
     print(f"[TRAINING] STARTING - Watch Language Emerge!")
@@ -311,7 +331,7 @@ def main():
                 
                 # Show actual text generation every 25 steps!
                 print(f"\n[LIVE GENERATION] What the AI is saying right now:")
-                test_generation(model, tokenizer, epoch, args.device)
+                test_generation(model, vocab, word2idx, epoch, args.device)
         
         # Epoch summary
         avg_epoch_loss = epoch_loss / args.steps_per_epoch
@@ -320,7 +340,7 @@ def main():
         
         # Test generation quality
         if (epoch + 1) % args.test_every == 0 or epoch == args.epochs - 1:
-            test_generation(model, tokenizer, epoch, args.device)
+            test_generation(model, vocab, word2idx, epoch, args.device)
         
         # Save intermediate checkpoints
         if (epoch + 1) % 20 == 0 or epoch == args.epochs - 1:
