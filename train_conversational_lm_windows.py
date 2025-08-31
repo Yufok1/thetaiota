@@ -249,7 +249,7 @@ def main():
             ids = pickle.load(f)
     files = []  # Optionally cache file list if needed
     vocab_size = len(vocab)  # Ensure vocab_size is set when loading from cache
-        print(f"[CACHE] Loaded. Token count: {len(tokens):,}, Vocab size: {len(vocab):,}")
+    print(f"[CACHE] Loaded. Token count: {len(tokens):,}, Vocab size: {len(vocab):,}")
     else:
         print(f"\n[DATA] [Step 1/7] Loading Training Data Patterns...")
         patterns = ['**/*.md', '**/*.txt', '**/*.py']
