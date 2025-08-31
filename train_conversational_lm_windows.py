@@ -225,27 +225,26 @@ def main():
     
     os.makedirs('checkpoints', exist_ok=True)
     # Load training data
-    print(f"\n[DATA] Loading Training Data:")
+
+    print(f"\n[DATA] [Step 1/7] Loading Training Data Patterns...")
     patterns = ['**/*.md', '**/*.txt', '**/*.py']
+    print(f"[DATA] [Step 2/7] Loading Corpus from Files...")
     corpus, files = load_corpus(patterns)
-    print("[DEBUG] Corpus loaded.")
+    print(f"[DATA] [Step 3/7] Corpus Loaded. Size: {len(corpus):,} characters from {len(files)} files.")
 
-    print("[DEBUG] Using NLTK word tokenizer.")
+    print(f"[DATA] [Step 4/7] Tokenizing Corpus with NLTK...")
     tokens = word_tokenize(corpus)
-    vocab = list(sorted(set(tokens)))
-    vocab_size = min(len(vocab), 5000)
-    print(f"[DEBUG] Tokenization complete. Token count: {len(tokens)}")
+    print(f"[DATA] [Step 5/7] Tokenization Complete. Token count: {len(tokens):,}")
 
-    # Map tokens to integer IDs
+    print(f"[DATA] [Step 6/7] Building Vocabulary and Mapping Tokens...")
+    vocab = list(sorted(set(tokens)))
+    vocab_size = min(len(vocab), 10000)
     word2idx = {word: idx for idx, word in enumerate(vocab)}
     ids = [word2idx.get(token, 0) for token in tokens]
+    print(f"[DATA] Vocabulary Size: {vocab_size} (Capped at 10,000)")
+    print(f"[DATA] Token IDs mapped. Total: {len(ids):,}")
 
-    print(f"   Files: {len(files)}")
-    print(f"   Corpus Size: {len(corpus):,} characters")
-    print(f"   Tokens: {len(ids):,}")
-    print(f"   Vocabulary: {vocab_size}")
-    # Create model
-    print(f"\n[MODEL] Creating Model:")
+    print(f"[MODEL] [Step 1/4] Instantiating Model...")
     model = TinyCausalLM(
         vocab_size=vocab_size,
         d_model=args.d_model,
@@ -253,43 +252,40 @@ def main():
         max_len=args.context,
         n_layers=args.n_layers
     )
-    print("[DEBUG] Model created.")
+    print(f"[MODEL] [Step 2/4] Model Created.")
     model.to(args.device)
-    print(f"[DEBUG] Model moved to device: {args.device}")
+    print(f"[MODEL] [Step 3/4] Model Moved to Device: {args.device}")
 
-    # Try to load existing weights
     checkpoint_path = os.path.join('checkpoints', 'tiny_lm.pt')
     if os.path.exists(checkpoint_path):
         try:
-            print(f"   Loading existing weights from {checkpoint_path}")
+            print(f"[MODEL] [Step 4/4] Loading Existing Weights from {checkpoint_path}...")
             checkpoint = torch.load(checkpoint_path, map_location=args.device)
             if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
                 model.load_state_dict(checkpoint['state_dict'])
-                print(f"   Loaded checkpoint from epoch {checkpoint.get('epoch', 'unknown')}")
-                print(f"   Previous loss: {checkpoint.get('loss', 'unknown'):.4f}")
+                print(f"[MODEL] Loaded checkpoint from epoch {checkpoint.get('epoch', 'unknown')}")
+                print(f"[MODEL] Previous loss: {checkpoint.get('loss', 'unknown'):.4f}")
             else:
                 model.load_state_dict(checkpoint)
-                print(f"   Loaded weights successfully")
+                print(f"[MODEL] Loaded weights successfully")
         except Exception as e:
-            print(f"   Could not load existing weights: {e}")
-            print(f"   Starting with fresh weights")
+            print(f"[MODEL] Could not load existing weights: {e}")
+            print(f"[MODEL] Starting with fresh weights")
     else:
-        print(f"   No existing checkpoint found - starting fresh")
+        print(f"[MODEL] No existing checkpoint found - starting fresh")
 
     params = sum(p.numel() for p in model.parameters())
-    print(f"   Parameters: {params:,} ({params/1e6:.1f}M)")
+    print(f"[MODEL] Parameters: {params:,} ({params/1e6:.1f}M)")
 
-    # Log VRAM after model creation
-    print(f"\n[MEMORY] VRAM After Model Creation:")
+    print(f"[MEMORY] VRAM After Model Creation:")
     log_memory_usage()
 
-    # Optimizer with optional AMP
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    print("[DEBUG] Optimizer created.")
+    print(f"[OPTIMIZER] Created AdamW optimizer.")
     loss_fn = nn.CrossEntropyLoss()
-    print("[DEBUG] Loss function created.")
+    print(f"[LOSS] CrossEntropyLoss function created.")
     scaler = torch.cuda.amp.GradScaler(enabled=args.use_amp)
-    print("[DEBUG] GradScaler initialized.")
+    print(f"[AMP] GradScaler initialized (AMP={'ENABLED' if args.use_amp else 'DISABLED'}).")
     
     print(f"\n" + "="*50)
     print(f"[TRAINING] STARTING - Watch Language Emerge!")
