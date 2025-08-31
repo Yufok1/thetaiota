@@ -9,6 +9,7 @@ import glob
 import torch
 import torch.nn as nn
 import argparse
+import pickle
 from chat_engine import TinyCausalLM
 # Use NLTK for lightweight tokenization
 import nltk
@@ -226,36 +227,68 @@ def main():
     os.makedirs('checkpoints', exist_ok=True)
     # Load training data
 
-    print(f"\n[DATA] [Step 1/7] Loading Training Data Patterns...")
-    patterns = ['**/*.md', '**/*.txt', '**/*.py']
-    print(f"[DATA] [Step 2/7] Loading Corpus from Files...")
-    corpus, files = load_corpus(patterns)
-    print(f"[DATA] [Step 3/7] Corpus Loaded. Size: {len(corpus):,} characters from {len(files)} files.")
 
+    cache_dir = os.path.join(os.path.dirname(__file__), 'lm_cache')
+    os.makedirs(cache_dir, exist_ok=True)
+    corpus_cache = os.path.join(cache_dir, 'corpus.pkl')
+    tokens_cache = os.path.join(cache_dir, 'tokens.pkl')
+    vocab_cache = os.path.join(cache_dir, 'vocab.pkl')
+    ids_cache = os.path.join(cache_dir, 'ids.pkl')
 
-    print(f"[DATA] [Step 4/7] Tokenizing Corpus with NLTK...")
-    # Tokenize in chunks for progress bar
-    chunk_size = max(1000000, len(corpus) // 50)  # 50 steps max
-    total_len = len(corpus)
-    tokens = []
-    bar_len = 30
-    for i in range(0, total_len, chunk_size):
-        chunk = corpus[i:i+chunk_size]
-        tokens.extend(word_tokenize(chunk))
-        progress = min((i + chunk_size) / total_len, 1.0)
-        filled = int(bar_len * progress)
-        bar = '#' * filled + '-' * (bar_len - filled)
-        print(f"   [TOKENIZE] [{bar}] {int(progress*100):3d}%", end='\r')
-    print()  # Newline after progress bar
-    print(f"[DATA] [Step 5/7] Tokenization Complete. Token count: {len(tokens):,}")
+    # Try to load cache
+    cache_found = all(os.path.exists(p) for p in [corpus_cache, tokens_cache, vocab_cache, ids_cache])
+    if cache_found:
+        print(f"[CACHE] Loading cached corpus, tokens, vocab, and ids...")
+        with open(corpus_cache, 'rb') as f:
+            corpus = pickle.load(f)
+        with open(tokens_cache, 'rb') as f:
+            tokens = pickle.load(f)
+        with open(vocab_cache, 'rb') as f:
+            vocab = pickle.load(f)
+        with open(ids_cache, 'rb') as f:
+            ids = pickle.load(f)
+        files = []  # Optionally cache file list if needed
+        print(f"[CACHE] Loaded. Token count: {len(tokens):,}, Vocab size: {len(vocab):,}")
+    else:
+        print(f"\n[DATA] [Step 1/7] Loading Training Data Patterns...")
+        patterns = ['**/*.md', '**/*.txt', '**/*.py']
+        print(f"[DATA] [Step 2/7] Loading Corpus from Files...")
+        corpus, files = load_corpus(patterns)
+        print(f"[DATA] [Step 3/7] Corpus Loaded. Size: {len(corpus):,} characters from {len(files)} files.")
 
-    print(f"[DATA] [Step 6/7] Building Vocabulary and Mapping Tokens...")
-    vocab = list(sorted(set(tokens)))
-    vocab_size = len(vocab)
-    word2idx = {word: idx for idx, word in enumerate(vocab)}
-    ids = [word2idx.get(token, 0) for token in tokens]
-    print(f"[DATA] Vocabulary Size: {vocab_size} (Full vocabulary restored)")
-    print(f"[DATA] Token IDs mapped. Total: {len(ids):,}")
+        print(f"[DATA] [Step 4/7] Tokenizing Corpus with NLTK...")
+        chunk_size = max(1000000, len(corpus) // 50)
+        total_len = len(corpus)
+        tokens = []
+        bar_len = 30
+        for i in range(0, total_len, chunk_size):
+            chunk = corpus[i:i+chunk_size]
+            tokens.extend(word_tokenize(chunk))
+            progress = min((i + chunk_size) / total_len, 1.0)
+            filled = int(bar_len * progress)
+            bar = '#' * filled + '-' * (bar_len - filled)
+            print(f"   [TOKENIZE] [{bar}] {int(progress*100):3d}%", end='\r')
+        print()
+        print(f"[DATA] [Step 5/7] Tokenization Complete. Token count: {len(tokens):,}")
+
+        print(f"[DATA] [Step 6/7] Building Vocabulary and Mapping Tokens...")
+        vocab = list(sorted(set(tokens)))
+        vocab_size = len(vocab)
+        word2idx = {word: idx for idx, word in enumerate(vocab)}
+        ids = [word2idx.get(token, 0) for token in tokens]
+        print(f"[DATA] Vocabulary Size: {vocab_size} (Full vocabulary restored)")
+        print(f"[DATA] Token IDs mapped. Total: {len(ids):,}")
+
+        # Save cache
+        print(f"[CACHE] Saving corpus, tokens, vocab, and ids to cache...")
+        with open(corpus_cache, 'wb') as f:
+            pickle.dump(corpus, f)
+        with open(tokens_cache, 'wb') as f:
+            pickle.dump(tokens, f)
+        with open(vocab_cache, 'wb') as f:
+            pickle.dump(vocab, f)
+        with open(ids_cache, 'wb') as f:
+            pickle.dump(ids, f)
 
     print(f"[MODEL] [Step 1/4] Instantiating Model...")
     model = TinyCausalLM(
